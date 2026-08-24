@@ -160,7 +160,7 @@ const Home = () => {
                 <div>
                   <div className="flex items-start justify-between gap-3 mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center font-bold text-base shadow-sm">
+                      <div className="w-11 h-11 rounded-xl bg-linear-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center font-bold text-base shadow-sm">
                         {emp.name ? emp.name.charAt(0).toUpperCase() : '?'}
                       </div>
                       <div>
@@ -262,3 +262,5 @@ const Home = () => {
 };
 
 export default Home;
+
+
