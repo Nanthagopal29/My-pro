@@ -5,6 +5,12 @@ const Home = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // New Date Filter States
+  const [filterMode, setFilterMode] = useState('single'); // 'single' | 'range'
+  const [selectedDate, setSelectedDate] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
   useEffect(() => {
     // Fetch data from your API
     const fetchData = async () => {
@@ -25,11 +31,43 @@ const Home = () => {
     fetchData();
   }, []);
 
-  // Group individual punch logs by employee code
+  // Filter and group individual punch logs by employee code
   const groupedData = useMemo(() => {
     const map = new Map();
 
-    data.forEach((record) => {
+    // 1. Apply Date Filters First
+    const filteredData = data.filter((record) => {
+      if (!record.date) return true;
+
+      // Safely parse the date from the record
+      const recordDate = new Date(record.date);
+      recordDate.setHours(0, 0, 0, 0);
+      const recordTime = recordDate.getTime();
+
+      if (filterMode === 'single') {
+        if (!selectedDate) return true; // No filter applied
+        const target = new Date(selectedDate);
+        target.setHours(0, 0, 0, 0);
+        return recordTime === target.getTime();
+      } else {
+        // Date Range logic
+        let isValid = true;
+        if (startDate) {
+          const start = new Date(startDate);
+          start.setHours(0, 0, 0, 0);
+          if (recordTime < start.getTime()) isValid = false;
+        }
+        if (endDate) {
+          const end = new Date(endDate);
+          end.setHours(0, 0, 0, 0);
+          if (recordTime > end.getTime()) isValid = false;
+        }
+        return isValid;
+      }
+    });
+
+    // 2. Group the Filtered Data
+    filteredData.forEach((record) => {
       const empKey = record.code;
       if (!map.has(empKey)) {
         map.set(empKey, {
@@ -50,6 +88,7 @@ const Home = () => {
       });
     });
 
+    // 3. Map aggregates
     return Array.from(map.values()).map((emp) => {
       // Calculate total duration (in minutes) across all sessions
       const totalMinutes = emp.punches.reduce((acc, curr) => {
@@ -66,7 +105,17 @@ const Home = () => {
         isCurrentlyActive,
       };
     });
-  }, [data]);
+  }, [data, filterMode, selectedDate, startDate, endDate]);
+
+  // Calculate filtered punch totals dynamically
+  const filteredPunchCount = groupedData.reduce((acc, emp) => acc + emp.punches.length, 0);
+
+  // Clear filters helper
+  const clearFilters = () => {
+    setSelectedDate('');
+    setStartDate('');
+    setEndDate('');
+  };
 
   return (
     <div className="min-h-screen bg-slate-200 p-4 sm:p-8 font-sans">
@@ -116,7 +165,7 @@ const Home = () => {
       </style>
 
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight">
               Staff Attendance Summary
@@ -130,11 +179,87 @@ const Home = () => {
                 Staff Members: <span className="text-blue-600 font-bold">{groupedData.length}</span>
               </div>
               <div className="bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-200 text-sm font-medium text-slate-600">
-                Total Punches: <span className="text-slate-900 font-bold">{data.length}</span>
+                Total Punches: <span className="text-slate-900 font-bold">{filteredPunchCount}</span>
               </div>
             </div>
           )}
         </div>
+
+        {/* Filter Controls */}
+        {!loading && !error && (
+          <div className="mb-8 p-4 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row gap-4 md:items-center justify-between">
+            <div className="flex bg-slate-100 p-1 rounded-lg self-start md:self-auto">
+              <button
+                onClick={() => setFilterMode('single')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  filterMode === 'single'
+                    ? 'bg-white text-slate-800 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Single Date
+              </button>
+              <button
+                onClick={() => setFilterMode('range')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  filterMode === 'range'
+                    ? 'bg-white text-slate-800 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Date Range
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              {filterMode === 'single' ? (
+                <div className="flex flex-col">
+                  <span className="text-xs text-slate-400 font-medium mb-1 ml-1">Select Date</span>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-[150px]"
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-slate-400 font-medium mb-1 ml-1">Start Date</span>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-[150px]"
+                    />
+                  </div>
+                  <span className="text-slate-300 font-medium mt-5 hidden sm:block">to</span>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-slate-400 font-medium mb-1 ml-1">End Date</span>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-[150px]"
+                    />
+                  </div>
+                </>
+              )}
+              
+              {(selectedDate || startDate || endDate) && (
+                <button
+                  onClick={clearFilters}
+                  className="mt-5 p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                  title="Clear Filters"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <div className="flex justify-center items-center h-64">
@@ -160,7 +285,7 @@ const Home = () => {
                 <div>
                   <div className="flex items-start justify-between gap-3 mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-xl bg-linear-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center font-bold text-base shadow-sm">
+                      <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center font-bold text-base shadow-sm">
                         {emp.name ? emp.name.charAt(0).toUpperCase() : '?'}
                       </div>
                       <div>
@@ -251,7 +376,7 @@ const Home = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 <h3 className="text-slate-600 font-medium text-base">No staff attendance records</h3>
-                <p className="text-slate-400 text-sm mt-1">There are no punches recorded for today.</p>
+                <p className="text-slate-400 text-sm mt-1">There are no punches found for the selected dates.</p>
               </div>
             )}
           </div>
@@ -262,5 +387,3 @@ const Home = () => {
 };
 
 export default Home;
-
-
